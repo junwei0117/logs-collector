@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math/big"
 	"strings"
@@ -14,10 +15,15 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/junwei0117/logs-collector/contracts/token"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
-	rpcEndpoint = "wss://ws.json-rpc.evm.testnet.shimmer.network"
+	rpcEndpoint     = "wss://ws.json-rpc.evm.testnet.shimmer.network"
+	mongoEndpoint   = "mongodb://localhost:27017"
+	mongoDatabase   = "db"
+	mongoCollection = "transferEvents"
 )
 
 var (
@@ -26,9 +32,15 @@ var (
 )
 
 type LogTransfer struct {
-	From  common.Address
-	To    common.Address
-	Value *big.Int
+	From            common.Address
+	To              common.Address
+	Value           *big.Int
+	ContractAddress common.Address
+	BlockNumber     uint64
+	BlockHash       common.Hash
+	TxHash          common.Hash
+	TxIndex         uint
+	Index           uint
 }
 
 func main() {
@@ -49,8 +61,30 @@ func main() {
 		log.Fatalf("Failed to subscribe to transfer events: %v", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(mongoEndpoint))
+	if err != nil {
+		log.Fatalf("Failed to create MongoDB client: %v", err)
+	}
+
+	err = mongoClient.Connect(ctx)
+	if err != nil {
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	}
+
+	defer func() {
+		if err := mongoClient.Disconnect(ctx); err != nil {
+			log.Fatalf("Failed to disconnect from MongoDB: %v", err)
+		}
+	}()
+
+	db := mongoClient.Database(mongoDatabase)
+	coll := db.Collection(mongoCollection)
+
 	for vLog := range logs {
-		err := handleTransferEvent(contractAbi, vLog)
+		err := handleTransferEvent(contractAbi, vLog, coll)
 		if err != nil {
 			log.Printf("Failed to handle transfer event: %v", err)
 		}
@@ -76,7 +110,7 @@ func subscribeToTransferEvents(client *ethclient.Client) (<-chan types.Log, erro
 	return logs, nil
 }
 
-func handleTransferEvent(contractAbi abi.ABI, vLog types.Log) error {
+func handleTransferEvent(contractAbi abi.ABI, vLog types.Log, coll *mongo.Collection) error {
 	var transferEvent LogTransfer
 
 	err := contractAbi.UnpackIntoInterface(&transferEvent, "Transfer", vLog.Data)
@@ -86,12 +120,19 @@ func handleTransferEvent(contractAbi abi.ABI, vLog types.Log) error {
 
 	transferEvent.From = common.HexToAddress(vLog.Topics[1].Hex())
 	transferEvent.To = common.HexToAddress(vLog.Topics[2].Hex())
+	transferEvent.ContractAddress = vLog.Address
+	transferEvent.BlockNumber = vLog.BlockNumber
+	transferEvent.BlockHash = vLog.BlockHash
+	transferEvent.TxHash = vLog.TxHash
+	transferEvent.TxIndex = vLog.TxIndex
+	transferEvent.Index = vLog.Index
 
-	log.Printf("Block Number: %d\n", vLog.BlockNumber)
-	log.Printf("From: %s\n", transferEvent.From.Hex())
-	log.Printf("To: %s\n", transferEvent.To.Hex())
-	log.Printf("Tokens: %s\n", transferEvent.Value.String())
-	log.Println("=====================================================")
+	fmt.Printf("%+v\n", transferEvent)
+
+	_, err = coll.InsertOne(context.Background(), transferEvent)
+	if err != nil {
+		return errors.New("failed to insert transfer event into MongoDB: " + err.Error())
+	}
 
 	return nil
 }
