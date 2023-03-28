@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net/http"
 	"strings"
 
 	"github.com/ethereum/go-ethereum"
@@ -14,7 +15,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-gonic/gin"
 	"github.com/junwei0117/logs-collector/contracts/token"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -83,11 +86,39 @@ func main() {
 	db := mongoClient.Database(mongoDatabase)
 	coll := db.Collection(mongoCollection)
 
-	for vLog := range logs {
-		err := handleTransferEvent(contractAbi, vLog, coll)
-		if err != nil {
-			log.Printf("Failed to handle transfer event: %v", err)
+	go func() {
+		for vLog := range logs {
+			err := handleTransferEvent(contractAbi, vLog, coll)
+			if err != nil {
+				log.Printf("Failed to handle transfer event: %v", err)
+			}
 		}
+	}()
+
+	r := gin.Default()
+
+	r.GET("/transfers", func(c *gin.Context) {
+		var transfers []LogTransfer
+		filter := bson.M{}
+		options := options.Find().SetSort(bson.M{"blockNumber": -1}).SetLimit(100)
+
+		cursor, err := coll.Find(context.Background(), filter, options)
+		if err != nil {
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+
+		if err := cursor.All(context.Background(), &transfers); err != nil {
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+
+		c.JSON(http.StatusOK, transfers)
+	})
+
+	err = r.Run(":8080")
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
 
