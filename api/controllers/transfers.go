@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/junwei0117/logs-collector/pkg/configs"
 	"github.com/junwei0117/logs-collector/pkg/database"
 	"github.com/junwei0117/logs-collector/pkg/logger"
 	"github.com/junwei0117/logs-collector/pkg/subscriber"
@@ -92,7 +93,7 @@ func GetTransfers(c *gin.Context) {
 
 	queryOptions := options.Find().SetSort(bson.M{"blocknumber": 1}).SetSkip(int64(offset)).SetLimit(int64(limit))
 
-	cursor, err := db.Collection(database.MongoCollection).Find(ctx, queryFilter, queryOptions)
+	cursor, err := db.Collection(configs.MongoCollection).Find(ctx, queryFilter, queryOptions)
 	if err != nil {
 		logger.Logger.Errorf("Failed to execute MongoDB query: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
@@ -176,7 +177,7 @@ func GetTransfersCount(c *gin.Context) {
 		}
 	}
 
-	count, err := db.Collection(database.MongoCollection).CountDocuments(ctx, queryFilter)
+	count, err := db.Collection(configs.MongoCollection).CountDocuments(ctx, queryFilter)
 	if err != nil {
 		logger.Logger.Errorf("Failed to execute MongoDB query: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)

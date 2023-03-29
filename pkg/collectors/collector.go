@@ -15,10 +15,15 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/junwei0117/logs-collector/contracts/token"
+	"github.com/junwei0117/logs-collector/pkg/configs"
 	"github.com/junwei0117/logs-collector/pkg/database"
 	"github.com/junwei0117/logs-collector/pkg/logger"
 	"github.com/junwei0117/logs-collector/pkg/subscriber"
 	"go.mongodb.org/mongo-driver/bson"
+)
+
+var (
+	Erc20TransferSig = []byte("Transfer(address,address,uint256)")
 )
 
 func GetTransferLogs(fromBlock int64, toBlock ...int64) ([]types.Log, error) {
@@ -26,7 +31,7 @@ func GetTransferLogs(fromBlock int64, toBlock ...int64) ([]types.Log, error) {
 	if len(toBlock) > 0 {
 		endBlock = toBlock[0]
 	} else {
-		client, err := ethclient.DialContext(context.Background(), WebsocketRPCEndpoint)
+		client, err := ethclient.DialContext(context.Background(), configs.RPCEndpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +42,7 @@ func GetTransferLogs(fromBlock int64, toBlock ...int64) ([]types.Log, error) {
 		endBlock = block.Number().Int64()
 	}
 
-	client, err := ethclient.DialContext(context.Background(), WebsocketRPCEndpoint)
+	client, err := ethclient.DialContext(context.Background(), configs.WebsocketRPCEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +89,7 @@ func HandleTransferLogs(vLog types.Log) error {
 	defer db.Client().Disconnect(context.Background())
 
 	filter := bson.M{"txhash": vLog.TxHash}
-	count, err := db.Collection(database.MongoCollection).CountDocuments(context.Background(), filter)
+	count, err := db.Collection(configs.MongoCollection).CountDocuments(context.Background(), filter)
 	if err != nil {
 		return errors.New("failed to count transfer event documents in MongoDB: " + err.Error())
 	}
@@ -122,7 +127,7 @@ func HandleTransferLogs(vLog types.Log) error {
 
 	logger.Logger.Infof("[Collector] Transfer event: %+v", transferEvent)
 
-	_, err = db.Collection(database.MongoCollection).InsertOne(context.Background(), transferEvent)
+	_, err = db.Collection(configs.MongoCollection).InsertOne(context.Background(), transferEvent)
 	if err != nil {
 		return errors.New("failed to insert transfer event into MongoDB: " + err.Error())
 	}
@@ -145,7 +150,7 @@ func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
 		return timestamp, nil
 	}
 
-	client, err := ethclient.DialContext(context.Background(), RPCEndpoint)
+	client, err := ethclient.DialContext(context.Background(), configs.RPCEndpoint)
 	if err != nil {
 		logger.Logger.Errorf("Failed to connect to Ethereum client: %v", err)
 	}
