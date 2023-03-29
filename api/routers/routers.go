@@ -40,6 +40,7 @@ func SetUpRouters() *gin.Engine {
 	transfersRouter := apiRouter.Group("/transfers")
 	{
 		transfersRouter.GET("", controllers.GetTransfers)
+		transfersRouter.GET("/counters", controllers.GetTransfersCount)
 	}
 
 	return r

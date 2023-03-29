@@ -50,6 +50,7 @@ func HandleTransferEvent(vLog types.Log) error {
 	if err != nil {
 		return err
 	}
+	defer db.Client().Disconnect(context.Background())
 
 	transferEvent := &TransferLog{}
 
@@ -71,8 +72,6 @@ func HandleTransferEvent(vLog types.Log) error {
 	transferEvent.TxHash = vLog.TxHash
 	transferEvent.TxIndex = vLog.TxIndex
 	transferEvent.Index = vLog.Index
-
-	log.Printf("%+v\n", transferEvent)
 
 	_, err = db.Collection(database.MongoCollection).InsertOne(context.Background(), transferEvent)
 	if err != nil {

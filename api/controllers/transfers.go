@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,7 @@ func GetTransfers(c *gin.Context) {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
+	defer db.Client().Disconnect(ctx)
 
 	transfers := []*subscriber.TransferLog{}
 	queryFilter := bson.M{}
@@ -44,4 +46,48 @@ func GetTransfers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, transfers)
+}
+
+func GetTransfersCount(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	db, err := database.ConnectToMongoDB()
+	if err != nil {
+		log.Printf("Failed to connect to MongoDB: %v", err)
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	defer db.Client().Disconnect(ctx)
+
+	fromBlockStr := c.Query("fromBlock")
+	toBlockStr := c.Query("toBlock")
+
+	fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
+		return
+	}
+
+	toBlock, err := strconv.ParseUint(toBlockStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toBlock parameter"})
+		return
+	}
+
+	filter := bson.M{
+		"blocknumber": bson.M{
+			"$gte": fromBlock,
+			"$lte": toBlock,
+		},
+	}
+
+	count, err := db.Collection(database.MongoCollection).CountDocuments(ctx, filter)
+	if err != nil {
+		log.Printf("Failed to execute MongoDB query: %v", err)
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"count": count})
 }
