@@ -3,6 +3,7 @@ package subscriber
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math/big"
 	"strings"
@@ -13,12 +14,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/junwei0117/logs-collector/contracts/token"
 	"github.com/junwei0117/logs-collector/pkg/database"
 )
 
-func SubscribeToTransferEvents() (<-chan types.Log, error) {
+var blockTimeCache = make(map[uint64]uint64)
+
+func SubscribeToTransferLogs() (<-chan types.Log, error) {
 	client, err := ethclient.DialContext(context.Background(), RPCEndpoint)
 	if err != nil {
 		log.Fatalf("Failed to connect to Ethereum client: %v", err)
@@ -42,7 +46,7 @@ func SubscribeToTransferEvents() (<-chan types.Log, error) {
 	return logs, nil
 }
 
-func HandleTransferEvent(vLog types.Log) error {
+func HandleTransferLogs(vLog types.Log) error {
 	if len(vLog.Data) == 0 {
 		return nil
 	}
@@ -80,6 +84,18 @@ func HandleTransferEvent(vLog types.Log) error {
 	transferEvent.Index = vLog.Index
 	transferEvent.BlockTimeStamp = blockTimeStamp
 
+	filter := bson.M{"txhash": transferEvent.TxHash}
+	count, err := db.Collection(database.MongoCollection).CountDocuments(context.Background(), filter)
+	if err != nil {
+		return errors.New("failed to count transfer event documents in MongoDB: " + err.Error())
+	}
+	if count > 0 {
+		log.Printf("Transfer event already exists in MongoDB: %+v", transferEvent)
+		return nil
+	}
+
+	fmt.Printf("Transfer event: %+v\n", transferEvent)
+
 	_, err = db.Collection(database.MongoCollection).InsertOne(context.Background(), transferEvent)
 	if err != nil {
 		return errors.New("failed to insert transfer event into MongoDB: " + err.Error())
@@ -89,6 +105,10 @@ func HandleTransferEvent(vLog types.Log) error {
 }
 
 func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
+	if timestamp, ok := blockTimeCache[blockNumber]; ok {
+		return timestamp, nil
+	}
+
 	client, err := ethclient.DialContext(context.Background(), RPCEndpoint)
 	if err != nil {
 		log.Fatalf("Failed to connect to Ethereum client: %v", err)
@@ -99,5 +119,8 @@ func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
 		return 0, errors.New("failed to get block by number: " + err.Error())
 	}
 
-	return block.Time(), nil
+	blockTime := block.Time()
+	blockTimeCache[blockNumber] = blockTime
+
+	return blockTime, nil
 }
