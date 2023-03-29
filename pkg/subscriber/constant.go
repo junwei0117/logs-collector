@@ -1,7 +1,8 @@
 package subscriber
 
 const (
-	RPCEndpoint = "wss://polygon-mumbai.g.alchemy.com/v2/bFPKzZPlnve1q7w9ZolgfEdPVUoGgw1Q"
+	WebsocketRPCEndpoint = "wss://ws.json-rpc.evm.testnet.shimmer.network"
+	RPCEndpoint          = "https://json-rpc.evm.testnet.shimmer.network"
 )
 
 var (
