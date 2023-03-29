@@ -43,5 +43,11 @@ func SetUpRouters() *gin.Engine {
 		transfersRouter.GET("/counters", controllers.GetTransfersCount)
 	}
 
+	addressesRouter := apiRouter.Group("/addresses")
+	{
+		addressesRouter.GET(":address", controllers.GetAddresses)
+		addressesRouter.GET(":address/counters", controllers.GetAddressesCount)
+	}
+
 	return r
 }
