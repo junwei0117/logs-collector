@@ -16,4 +16,5 @@ type TransferLog struct {
 	TxHash          common.Hash    `json:"txHash"`
 	TxIndex         uint           `json:"txIndex"`
 	Index           uint           `json:"index"`
+	BlockTimeStamp  uint64         `json:"blockTimeStamp"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum"
@@ -64,6 +65,11 @@ func HandleTransferEvent(vLog types.Log) error {
 		return errors.New("failed to unpack transfer event data: " + err.Error())
 	}
 
+	blockTimeStamp, err := GetBlockTimeStamp(vLog.BlockNumber)
+	if err != nil {
+		return err
+	}
+
 	transferEvent.From = common.HexToAddress(vLog.Topics[1].Hex())
 	transferEvent.To = common.HexToAddress(vLog.Topics[2].Hex())
 	transferEvent.ContractAddress = vLog.Address
@@ -72,6 +78,7 @@ func HandleTransferEvent(vLog types.Log) error {
 	transferEvent.TxHash = vLog.TxHash
 	transferEvent.TxIndex = vLog.TxIndex
 	transferEvent.Index = vLog.Index
+	transferEvent.BlockTimeStamp = blockTimeStamp
 
 	_, err = db.Collection(database.MongoCollection).InsertOne(context.Background(), transferEvent)
 	if err != nil {
@@ -79,4 +86,18 @@ func HandleTransferEvent(vLog types.Log) error {
 	}
 
 	return nil
+}
+
+func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
+	client, err := ethclient.DialContext(context.Background(), RPCEndpoint)
+	if err != nil {
+		log.Fatalf("Failed to connect to Ethereum client: %v", err)
+	}
+
+	block, err := client.BlockByNumber(context.Background(), new(big.Int).SetUint64(blockNumber))
+	if err != nil {
+		return 0, errors.New("failed to get block by number: " + err.Error())
+	}
+
+	return block.Time(), nil
 }

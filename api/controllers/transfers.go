@@ -32,9 +32,17 @@ func GetTransfers(c *gin.Context) {
 	fromBlockStr := c.Query("from_block")
 	toBlockStr := c.Query("to_block")
 
+	fromTimeStr := c.Query("from_time")
+	toTimeStr := c.Query("to_time")
+
 	var queryFilter bson.M
 
 	if fromBlockStr != "" || toBlockStr != "" {
+		if fromTimeStr != "" || toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot use both block and time filters"})
+			return
+		}
+
 		fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
 		if err != nil && fromBlockStr != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
@@ -53,6 +61,26 @@ func GetTransfers(c *gin.Context) {
 			queryFilter = bson.M{"blocknumber": bson.M{"$gte": fromBlock}}
 		} else if toBlockStr != "" {
 			queryFilter = bson.M{"blocknumber": bson.M{"$lte": toBlock}}
+		}
+	} else if fromTimeStr != "" || toTimeStr != "" {
+		fromTime, err := strconv.ParseUint(fromTimeStr, 10, 64)
+		if err != nil && fromTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromTime parameter"})
+			return
+		}
+
+		toTime, err := strconv.ParseUint(toTimeStr, 10, 64)
+		if err != nil && toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toTime parameter"})
+			return
+		}
+
+		if fromTimeStr != "" && toTimeStr != "" {
+			queryFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime, "$lte": toTime}}
+		} else if fromTimeStr != "" {
+			queryFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime}}
+		} else if toTimeStr != "" {
+			queryFilter = bson.M{"blocktimestamp": bson.M{"$lte": toTime}}
 		}
 	}
 
@@ -96,9 +124,17 @@ func GetTransfersCount(c *gin.Context) {
 	fromBlockStr := c.Query("from_block")
 	toBlockStr := c.Query("to_block")
 
+	fromTimeStr := c.Query("from_time")
+	toTimeStr := c.Query("to_time")
+
 	var queryFilter bson.M
 
 	if fromBlockStr != "" || toBlockStr != "" {
+		if fromTimeStr != "" || toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot use both block and time filters"})
+			return
+		}
+
 		fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
 		if err != nil && fromBlockStr != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
@@ -117,6 +153,26 @@ func GetTransfersCount(c *gin.Context) {
 			queryFilter = bson.M{"blocknumber": bson.M{"$gte": fromBlock}}
 		} else if toBlockStr != "" {
 			queryFilter = bson.M{"blocknumber": bson.M{"$lte": toBlock}}
+		}
+	} else if fromTimeStr != "" || toTimeStr != "" {
+		fromTime, err := strconv.ParseUint(fromTimeStr, 10, 64)
+		if err != nil && fromTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromTime parameter"})
+			return
+		}
+
+		toTime, err := strconv.ParseUint(toTimeStr, 10, 64)
+		if err != nil && toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toTime parameter"})
+			return
+		}
+
+		if fromTimeStr != "" && toTimeStr != "" {
+			queryFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime, "$lte": toTime}}
+		} else if fromTimeStr != "" {
+			queryFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime}}
+		} else if toTimeStr != "" {
+			queryFilter = bson.M{"blocktimestamp": bson.M{"$lte": toTime}}
 		}
 	}
 

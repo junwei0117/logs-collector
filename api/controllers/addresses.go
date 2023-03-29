@@ -33,10 +33,17 @@ func GetAddresses(c *gin.Context) {
 	toBlockStr := c.Query("to_block")
 	addressStr := c.Param("address")
 	address := common.HexToAddress(addressStr)
+	fromTimeStr := c.Query("from_time")
+	toTimeStr := c.Query("to_time")
 
 	var queryFilter bson.M
 
 	if fromBlockStr != "" || toBlockStr != "" {
+		if fromTimeStr != "" || toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot use both block and time filters"})
+			return
+		}
+
 		fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
 		if err != nil && fromBlockStr != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
@@ -74,7 +81,44 @@ func GetAddresses(c *gin.Context) {
 
 			queryFilter = filter
 		}
+	} else if fromTimeStr != "" || toTimeStr != "" {
+		fromTime, err := strconv.ParseUint(fromTimeStr, 10, 64)
+		if err != nil && fromTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromTime parameter"})
+			return
+		}
 
+		toTime, err := strconv.ParseUint(toTimeStr, 10, 64)
+		if err != nil && toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toTime parameter"})
+			return
+		}
+
+		if fromTimeStr != "" || toTimeStr != "" {
+			blockFilter := bson.M{}
+			if fromTimeStr != "" && toTimeStr != "" {
+				blockFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime, "$lte": toTime}}
+			} else if fromTimeStr != "" {
+				blockFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime}}
+			} else if toTimeStr != "" {
+				blockFilter = bson.M{"blocktimestamp": bson.M{"$lte": toTime}}
+			}
+
+			filter := bson.M{
+				"$and": []bson.M{
+					{
+						"$or": []bson.M{
+							{"from": address},
+							{"to": address},
+							{"contractaddress": address},
+						},
+					},
+					blockFilter,
+				},
+			}
+
+			queryFilter = filter
+		}
 	} else {
 		queryFilter = bson.M{
 			"$or": []bson.M{
@@ -126,10 +170,17 @@ func GetAddressesCount(c *gin.Context) {
 	toBlockStr := c.Query("to_block")
 	addressStr := c.Param("address")
 	address := common.HexToAddress(addressStr)
+	fromTimeStr := c.Query("from_time")
+	toTimeStr := c.Query("to_time")
 
 	var queryFilter bson.M
 
 	if fromBlockStr != "" || toBlockStr != "" {
+		if fromTimeStr != "" || toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot use both block and time filters"})
+			return
+		}
+
 		fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
 		if err != nil && fromBlockStr != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
@@ -150,6 +201,44 @@ func GetAddressesCount(c *gin.Context) {
 				blockFilter = bson.M{"blocknumber": bson.M{"$gte": fromBlock}}
 			} else if toBlockStr != "" {
 				blockFilter = bson.M{"blocknumber": bson.M{"$lte": toBlock}}
+			}
+
+			filter := bson.M{
+				"$and": []bson.M{
+					{
+						"$or": []bson.M{
+							{"from": address},
+							{"to": address},
+							{"contractaddress": address},
+						},
+					},
+					blockFilter,
+				},
+			}
+
+			queryFilter = filter
+		}
+	} else if fromTimeStr != "" || toTimeStr != "" {
+		fromTime, err := strconv.ParseUint(fromTimeStr, 10, 64)
+		if err != nil && fromTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromTime parameter"})
+			return
+		}
+
+		toTime, err := strconv.ParseUint(toTimeStr, 10, 64)
+		if err != nil && toTimeStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toTime parameter"})
+			return
+		}
+
+		if fromTimeStr != "" || toTimeStr != "" {
+			blockFilter := bson.M{}
+			if fromTimeStr != "" && toTimeStr != "" {
+				blockFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime, "$lte": toTime}}
+			} else if fromTimeStr != "" {
+				blockFilter = bson.M{"blocktimestamp": bson.M{"$gte": fromTime}}
+			} else if toTimeStr != "" {
+				blockFilter = bson.M{"blocktimestamp": bson.M{"$lte": toTime}}
 			}
 
 			filter := bson.M{
