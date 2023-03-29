@@ -3,9 +3,9 @@ package subscriber
 import (
 	"context"
 	"errors"
-	"log"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -18,14 +18,13 @@ import (
 
 	"github.com/junwei0117/logs-collector/contracts/token"
 	"github.com/junwei0117/logs-collector/pkg/database"
+	"github.com/junwei0117/logs-collector/pkg/logger"
 )
-
-var blockTimeCache = make(map[uint64]uint64)
 
 func SubscribeToTransferLogs() (<-chan types.Log, error) {
 	client, err := ethclient.DialContext(context.Background(), WebsocketRPCEndpoint)
 	if err != nil {
-		log.Printf("Failed to connect to Ethereum client: %v", err)
+		logger.Logger.Errorf("Failed to connect to Ethereum client: %v", err)
 	}
 
 	topic := crypto.Keccak256Hash(Erc20TransferSig)
@@ -63,7 +62,7 @@ func HandleTransferLogs(vLog types.Log) error {
 		return errors.New("failed to count transfer event documents in MongoDB: " + err.Error())
 	}
 	if count > 0 {
-		// log.Printf("Transfer event already exists in MongoDB: %+v", transferEvent)
+		logger.Logger.Debugf("[Subscriber] Transfer event already exists in MongoDB: %+v", vLog.TxHash)
 		return nil
 	}
 
@@ -71,7 +70,7 @@ func HandleTransferLogs(vLog types.Log) error {
 
 	contractAbi, err := abi.JSON(strings.NewReader(string(token.TokenABI)))
 	if err != nil {
-		log.Printf("Failed to parse contract ABI: %v", err)
+		logger.Logger.Errorf("Failed to parse contract ABI: %v", err)
 	}
 
 	err = contractAbi.UnpackIntoInterface(transferEvent, "Transfer", vLog.Data)
@@ -94,7 +93,7 @@ func HandleTransferLogs(vLog types.Log) error {
 	transferEvent.Index = vLog.Index
 	transferEvent.BlockTimeStamp = blockTimeStamp
 
-	log.Printf("[Subscriber] Transfer event: %+v", transferEvent)
+	logger.Logger.Infof("[Subscriber] Transfer event: %+v", transferEvent)
 
 	_, err = db.Collection(database.MongoCollection).InsertOne(context.Background(), transferEvent)
 	if err != nil {
@@ -104,14 +103,24 @@ func HandleTransferLogs(vLog types.Log) error {
 	return nil
 }
 
+var blockTimeCache = struct {
+	sync.Mutex
+	m map[uint64]uint64
+}{
+	m: make(map[uint64]uint64),
+}
+
 func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
-	if timestamp, ok := blockTimeCache[blockNumber]; ok {
+	blockTimeCache.Lock()
+	defer blockTimeCache.Unlock()
+
+	if timestamp, ok := blockTimeCache.m[blockNumber]; ok {
 		return timestamp, nil
 	}
 
 	client, err := ethclient.DialContext(context.Background(), RPCEndpoint)
 	if err != nil {
-		log.Printf("Failed to connect to Ethereum client: %v", err)
+		logger.Logger.Errorf("Failed to connect to Ethereum client: %v", err)
 	}
 
 	var block *types.Block
@@ -124,7 +133,7 @@ func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
 			break
 		}
 
-		log.Printf("Failed to get block by number: %v. Retrying in %v...", err, delay)
+		logger.Logger.Errorf("Failed to get block by number: %v. Retrying in %v...", err, delay)
 		time.Sleep(delay)
 		retries--
 	}
@@ -134,7 +143,7 @@ func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
 	}
 
 	blockTime := block.Time()
-	blockTimeCache[blockNumber] = blockTime
+	blockTimeCache.m[blockNumber] = blockTime
 
 	return blockTime, nil
 }

@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/junwei0117/logs-collector/pkg/database"
+	"github.com/junwei0117/logs-collector/pkg/logger"
 	"github.com/junwei0117/logs-collector/pkg/subscriber"
 )
 
@@ -21,7 +21,7 @@ func GetTransfers(c *gin.Context) {
 
 	db, err := database.ConnectToMongoDB()
 	if err != nil {
-		log.Printf("Failed to connect to MongoDB: %v", err)
+		logger.Logger.Errorf("Failed to connect to MongoDB: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
@@ -94,14 +94,14 @@ func GetTransfers(c *gin.Context) {
 
 	cursor, err := db.Collection(database.MongoCollection).Find(ctx, queryFilter, queryOptions)
 	if err != nil {
-		log.Printf("Failed to execute MongoDB query: %v", err)
+		logger.Logger.Errorf("Failed to execute MongoDB query: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 	defer cursor.Close(ctx)
 
 	if err := cursor.All(ctx, &transfers); err != nil {
-		log.Printf("Failed to parse MongoDB result: %v", err)
+		logger.Logger.Errorf("Failed to parse MongoDB result: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
@@ -115,7 +115,7 @@ func GetTransfersCount(c *gin.Context) {
 
 	db, err := database.ConnectToMongoDB()
 	if err != nil {
-		log.Printf("Failed to connect to MongoDB: %v", err)
+		logger.Logger.Errorf("Failed to connect to MongoDB: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
@@ -178,7 +178,7 @@ func GetTransfersCount(c *gin.Context) {
 
 	count, err := db.Collection(database.MongoCollection).CountDocuments(ctx, queryFilter)
 	if err != nil {
-		log.Printf("Failed to execute MongoDB query: %v", err)
+		logger.Logger.Errorf("Failed to execute MongoDB query: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}

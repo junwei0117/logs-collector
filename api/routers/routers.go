@@ -18,7 +18,9 @@ func readBody(reader io.Reader) string {
 }
 
 func SetUpRouters() *gin.Engine {
-	r := gin.Default()
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
 
 	corsMiddleware := func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")

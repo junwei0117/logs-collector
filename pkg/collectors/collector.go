@@ -3,9 +3,9 @@ package collectors
 import (
 	"context"
 	"errors"
-	"log"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/junwei0117/logs-collector/contracts/token"
 	"github.com/junwei0117/logs-collector/pkg/database"
+	"github.com/junwei0117/logs-collector/pkg/logger"
 	"github.com/junwei0117/logs-collector/pkg/subscriber"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -71,8 +72,6 @@ func GetTransferLogs(fromBlock int64, toBlock ...int64) ([]types.Log, error) {
 	return logs, nil
 }
 
-var blockTimeCache = make(map[uint64]uint64)
-
 func HandleTransferLogs(vLog types.Log) error {
 	if len(vLog.Data) == 0 {
 		return nil
@@ -90,7 +89,7 @@ func HandleTransferLogs(vLog types.Log) error {
 		return errors.New("failed to count transfer event documents in MongoDB: " + err.Error())
 	}
 	if count > 0 {
-		// log.Printf("Transfer event already exists in MongoDB: %+v", vLog.TxHash)
+		logger.Logger.Debugf("[Collector] Transfer event already exists in MongoDB: %+v", vLog.TxHash)
 		return nil
 	}
 
@@ -98,7 +97,7 @@ func HandleTransferLogs(vLog types.Log) error {
 
 	contractAbi, err := abi.JSON(strings.NewReader(string(token.TokenABI)))
 	if err != nil {
-		log.Printf("Failed to parse contract ABI: %v", err)
+		logger.Logger.Errorf("Failed to parse contract ABI: %v", err)
 	}
 
 	err = contractAbi.UnpackIntoInterface(transferEvent, "Transfer", vLog.Data)
@@ -121,7 +120,7 @@ func HandleTransferLogs(vLog types.Log) error {
 	transferEvent.Index = vLog.Index
 	transferEvent.BlockTimeStamp = blockTimeStamp
 
-	log.Printf("[Collector] Transfer event: %+v", transferEvent)
+	logger.Logger.Infof("[Collector] Transfer event: %+v", transferEvent)
 
 	_, err = db.Collection(database.MongoCollection).InsertOne(context.Background(), transferEvent)
 	if err != nil {
@@ -131,14 +130,24 @@ func HandleTransferLogs(vLog types.Log) error {
 	return nil
 }
 
+var blockTimeCache = struct {
+	sync.Mutex
+	m map[uint64]uint64
+}{
+	m: make(map[uint64]uint64),
+}
+
 func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
-	if timestamp, ok := blockTimeCache[blockNumber]; ok {
+	blockTimeCache.Lock()
+	defer blockTimeCache.Unlock()
+
+	if timestamp, ok := blockTimeCache.m[blockNumber]; ok {
 		return timestamp, nil
 	}
 
 	client, err := ethclient.DialContext(context.Background(), RPCEndpoint)
 	if err != nil {
-		log.Printf("Failed to connect to Ethereum client: %v", err)
+		logger.Logger.Errorf("Failed to connect to Ethereum client: %v", err)
 	}
 
 	var block *types.Block
@@ -151,7 +160,7 @@ func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
 			break
 		}
 
-		log.Printf("Failed to get block by number: %v. Retrying in %v...", err, delay)
+		logger.Logger.Errorf("Failed to get block by number: %v. Retrying in %v...", err, delay)
 		time.Sleep(delay)
 		retries--
 	}
@@ -161,7 +170,7 @@ func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
 	}
 
 	blockTime := block.Time()
-	blockTimeCache[blockNumber] = blockTime
+	blockTimeCache.m[blockNumber] = blockTime
 
 	return blockTime, nil
 }
