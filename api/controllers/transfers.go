@@ -28,8 +28,41 @@ func GetTransfers(c *gin.Context) {
 	defer db.Client().Disconnect(ctx)
 
 	transfers := []*subscriber.TransferLog{}
-	queryFilter := bson.M{}
-	queryOptions := options.Find().SetSort(bson.M{"blockNumber": -1}).SetLimit(100)
+
+	fromBlockStr := c.Query("from_block")
+	toBlockStr := c.Query("to_block")
+
+	var queryFilter bson.M
+
+	if fromBlockStr != "" || toBlockStr != "" {
+		fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
+		if err != nil && fromBlockStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
+			return
+		}
+
+		toBlock, err := strconv.ParseUint(toBlockStr, 10, 64)
+		if err != nil && toBlockStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toBlock parameter"})
+			return
+		}
+
+		if fromBlockStr != "" && toBlockStr != "" {
+			queryFilter = bson.M{"blocknumber": bson.M{"$gte": fromBlock, "$lte": toBlock}}
+		} else if fromBlockStr != "" {
+			queryFilter = bson.M{"blocknumber": bson.M{"$gte": fromBlock}}
+		} else if toBlockStr != "" {
+			queryFilter = bson.M{"blocknumber": bson.M{"$lte": toBlock}}
+		}
+	}
+
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, err := strconv.Atoi(c.DefaultQuery("page_size", "100"))
+
+	offset := (page - 1) * pageSize
+	limit := pageSize
+
+	queryOptions := options.Find().SetSort(bson.M{"blocknumber": 1}).SetSkip(int64(offset)).SetLimit(int64(limit))
 
 	cursor, err := db.Collection(database.MongoCollection).Find(ctx, queryFilter, queryOptions)
 	if err != nil {
@@ -60,29 +93,34 @@ func GetTransfersCount(c *gin.Context) {
 	}
 	defer db.Client().Disconnect(ctx)
 
-	fromBlockStr := c.Query("fromBlock")
-	toBlockStr := c.Query("toBlock")
+	fromBlockStr := c.Query("from_block")
+	toBlockStr := c.Query("to_block")
 
-	fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
-		return
+	var queryFilter bson.M
+
+	if fromBlockStr != "" || toBlockStr != "" {
+		fromBlock, err := strconv.ParseUint(fromBlockStr, 10, 64)
+		if err != nil && fromBlockStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid fromBlock parameter"})
+			return
+		}
+
+		toBlock, err := strconv.ParseUint(toBlockStr, 10, 64)
+		if err != nil && toBlockStr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toBlock parameter"})
+			return
+		}
+
+		if fromBlockStr != "" && toBlockStr != "" {
+			queryFilter = bson.M{"blocknumber": bson.M{"$gte": fromBlock, "$lte": toBlock}}
+		} else if fromBlockStr != "" {
+			queryFilter = bson.M{"blocknumber": bson.M{"$gte": fromBlock}}
+		} else if toBlockStr != "" {
+			queryFilter = bson.M{"blocknumber": bson.M{"$lte": toBlock}}
+		}
 	}
 
-	toBlock, err := strconv.ParseUint(toBlockStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid toBlock parameter"})
-		return
-	}
-
-	filter := bson.M{
-		"blocknumber": bson.M{
-			"$gte": fromBlock,
-			"$lte": toBlock,
-		},
-	}
-
-	count, err := db.Collection(database.MongoCollection).CountDocuments(ctx, filter)
+	count, err := db.Collection(database.MongoCollection).CountDocuments(ctx, queryFilter)
 	if err != nil {
 		log.Printf("Failed to execute MongoDB query: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
