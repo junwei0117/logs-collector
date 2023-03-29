@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -177,8 +176,6 @@ func GetAddressesCount(c *gin.Context) {
 			},
 		}
 	}
-
-	fmt.Println(queryFilter)
 
 	count, err := db.Collection(database.MongoCollection).CountDocuments(ctx, queryFilter)
 	if err != nil {
