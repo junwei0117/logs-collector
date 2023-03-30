@@ -8,10 +8,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
+	loggerCommon "github.com/junwei0117/logs-collector/pkg/common"
 	"github.com/junwei0117/logs-collector/pkg/configs"
 	"github.com/junwei0117/logs-collector/pkg/database"
 	"github.com/junwei0117/logs-collector/pkg/logger"
-	"github.com/junwei0117/logs-collector/pkg/subscriber"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -20,7 +20,7 @@ func GetAddresses(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	db, err := database.ConnectToMongoDB()
+	db, err := database.GetDB()
 	if err != nil {
 		logger.Logger.Errorf("Failed to connect to MongoDB: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
@@ -28,7 +28,7 @@ func GetAddresses(c *gin.Context) {
 	}
 	defer db.Client().Disconnect(ctx)
 
-	transfers := []*subscriber.TransferLog{}
+	transfers := []*loggerCommon.TransferLog{}
 
 	fromBlockStr := c.Query("from_block")
 	toBlockStr := c.Query("to_block")
@@ -159,7 +159,7 @@ func GetAddressesCount(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	db, err := database.ConnectToMongoDB()
+	db, err := database.GetDB()
 	if err != nil {
 		logger.Logger.Errorf("Failed to connect to MongoDB: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)

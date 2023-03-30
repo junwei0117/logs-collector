@@ -12,6 +12,8 @@ var (
 	MongoEndpoint        string
 	MongoDatabase        string
 	MongoCollection      string
+	Debug                bool
+	ReportCaller         bool
 )
 
 func init() {
@@ -22,6 +24,8 @@ func init() {
 	mongoEndpoint := flag.String("mongoEndpoint", "", "MongoDB endpoint URL")
 	mongoDatabase := flag.String("mongoDatabase", "", "MongoDB database name")
 	mongoCollection := flag.String("mongoCollection", "", "MongoDB collection name")
+	debug := flag.Bool("debug", false, "Enable debug mode")
+	reportCaller := flag.Bool("reportCaller", false, "Enable log report caller")
 
 	flag.Parse()
 
@@ -32,4 +36,6 @@ func init() {
 	MongoEndpoint = *mongoEndpoint
 	MongoDatabase = *mongoDatabase
 	MongoCollection = *mongoCollection
+	Debug = *debug
+	ReportCaller = *reportCaller
 }
