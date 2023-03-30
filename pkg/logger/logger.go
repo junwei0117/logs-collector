@@ -1,9 +1,6 @@
 package logger
 
 import (
-	"io"
-	"os"
-
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/junwei0117/logs-collector/pkg/configs"
 	"github.com/sirupsen/logrus"
@@ -23,8 +20,4 @@ func Init() {
 		HideKeys:        true,
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
-
-	file, _ := os.OpenFile("log.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	mw := io.MultiWriter(os.Stdout, file)
-	Logger.SetOutput(mw)
 }
