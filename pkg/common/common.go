@@ -78,7 +78,7 @@ func GetBlockTimeStamp(blockNumber uint64) (uint64, error) {
 }
 
 func HandleTransferLogs(vLog types.Log) (*TransferLog, error) {
-	if len(vLog.Data) == 0 {
+	if len(vLog.Data) == 0 || len(vLog.Topics) > 3 {
 		return nil, nil
 	}
 

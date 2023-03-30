@@ -46,7 +46,7 @@ func main() {
 			logger.Logger.Errorf("[Collector] Failed to get transfer events: %v", err)
 		}
 
-		logger.Logger.Infof("[Collector] Syncing %d past logs since block %v", len(pastLogs), configs.FromBlock)
+		logger.Logger.Infof("[Collector] Syncing past logs since block %v", configs.FromBlock)
 
 		logChan := make(chan types.Log)
 		var wg sync.WaitGroup
