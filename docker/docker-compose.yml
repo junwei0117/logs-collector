@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  evm-transfer-logger:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongo
+    command:
+      - "--rpcEndpoint=https://json-rpc.evm.testnet.shimmer.network"
+      - "--websocketRPCEndpoint=wss://ws.json-rpc.evm.testnet.shimmer.network"
+      - "--fromBlock=24000"
+      - "--collectorsWorks=10"
+      - "--mongoEndpoint=mongodb://mongo:27017"
+      - "--mongoDatabase=shimmertestnet"
+      - "--mongoCollection=transferLogs"
+      - "--reportCaller=false"
+      - "--debug=false"
+
+  mongo:
+    image: mongo:latest
+    restart: always
+    ports:
+      - "27017"
+    volumes:
+      - mongo_data:/data/db
+
+networks:
+  default:
+
+volumes:
+  mongo_data:
