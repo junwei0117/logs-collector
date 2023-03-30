@@ -26,7 +26,6 @@ func GetTransfers(c *gin.Context) {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
-	defer db.Client().Disconnect(ctx)
 
 	transfers := []*loggerCommon.TransferLog{}
 
@@ -120,7 +119,6 @@ func GetTransfersCount(c *gin.Context) {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
-	defer db.Client().Disconnect(ctx)
 
 	fromBlockStr := c.Query("from_block")
 	toBlockStr := c.Query("to_block")
